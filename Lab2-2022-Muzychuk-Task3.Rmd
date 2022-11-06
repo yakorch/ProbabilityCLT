@@ -1,0 +1,124 @@
+---
+title: 'P&S-2022: Lab assignment 2 Task 3'
+author: "Teodor Muzychuk"
+output:
+  html_document:
+    df_print: paged
+---
+
+### Task 3.
+
+#### In this task, we use the Central Limit Theorem approximation for continuous random variables.
+
+#### One of the devices to measure radioactivity level at a given location is the Geiger counter. When the radioactive level is almost constant, the time between two consecutive clicks of the Geiger counter is an exponentially distributed random variable with parameter $\nu_1 = \mathtt{team\,id\,number} + 10$. Denote by $X_k$ the random time between the $(k-1)^{\mathrm{st}}$ and $k^{\mathrm{th}}$ click of the counter.
+
+1.  Show that the distribution of the sample means of $X_1, X_2,\dots,X_n$ gets very close to a normal one (which one?) as $n$ becomes large. To this end,
+
+    -   simulate the realizations $x_1,x_2,\dots,x_n$ of the \textbf{r.v.} $X_i$ and calculate the sample mean $s=\overline{\mathbf{x}}$;\
+    -   repeat this $K$ times to get the sample $\mathbf{s}=(s_1,\dots,s_K)$ of means and then the \emph{empirical cumulative distribution} function $F_{\mathbf{s}}$ of $\mathbf{s}$;\
+    -   identify $\mu$ and $\sigma^2$ such that the \textbf{c.d.f.} of $\mathscr{N}(\mu,\sigma^2)$ is close to the \textbf{e.c.d.f.} $F_{\mathbf{s}}$ of and plot both \textbf{c.d.f.}'s on one graph to visualize their proximity;\
+    -   calculate the maximal difference between the two \textbf{c.d.f.}'s;\
+    -   consider cases $n = 5$, $n = 10$, $n=50$ and comment on the results.
+
+#### First, generate samples an sample means:
+
+```{r}
+set.seed(09)
+nu1 <- 19
+K <- 1e3
+n <- 5
+sample_means <- colMeans(matrix(rexp(n*K, rate = nu1), nrow=n))
+```
+
+#### Next, calculate the parameters of the standard normal approximation
+
+```{r}
+mu <- 1/nu1     # the expectation of approx. is the same as expectation of r.v., e.g. 1/lambda for exponential distribution, as per CLT
+sigma <- 1/(sqrt(n)*nu1)    # the variance depends on the number of r.v., as per CLT
+```
+
+#### We can now plot ecdf and cdf
+
+```{r}
+xlims <- c(mu-3*sigma,mu+3*sigma)
+Fs <- ecdf(sample_means)
+plot(Fs, 
+     xlim = xlims, 
+     col = "blue",
+     lwd = 2,
+     main = "Comparison of ecdf and cdf")
+curve(pnorm(x, mean = mu, sd = sigma), col = "red", lwd = 2, add = TRUE)
+```
+
+As we can see, the ecdf approaches the cdf of normal distribution. If we make n larger and larger, the maximum differrence is smaller and smaller:
+
+#### Maximum difference of ecdf and cdf
+
+```{r}
+x <- seq(-1,1,by=.001)
+Fs <- ecdf(sample_means)
+max(abs(Fs(x)-pnorm(x, mean = mu, sd = sigma)))
+
+sample_means <- colMeans(matrix(rexp(10*K, rate = nu1), nrow=10))
+Fs <- ecdf(sample_means)
+max(abs(Fs(x)-pnorm(x, mean = mu, sd = mu/sqrt(10))))
+
+sample_means <- colMeans(matrix(rexp(50*K, rate = nu1), nrow=50))
+Fs <- ecdf(sample_means)
+max(abs(Fs(x)-pnorm(x, mean = mu, sd = mu/sqrt(50))))
+
+```
+
+2.  The place can be considered safe when the number of clicks in one minute does not exceed $100$. It is known that the parameter $\nu$ of the resulting exponential distribution is proportional to the number $N$ of the radioactive samples, i.e., $\nu = \nu_1*N$, where $\nu_1$ is the parameter for one sample. Determine the maximal number of radioactive samples that can be stored in that place so that, with probability $0.95$, the place is identified as safe. To do this,
+
+    -   express the event of interest in terms of the \textbf{r.v.} $S:= X_1 + \cdots + X_{100}$;\
+        $P(S>=60) >= 0.95$ (The probability that the total time taken to accumulate 100 clicks is more than 60 seconds is \>=95%)
+
+    -   obtain the theoretical bounds on $N$ using the Markov inequality, Chernoff bound and Central Limit Theorem and compare the results;
+
+        Markov: $0.95 <= P(S>1) <= E(S) = 100/(19*N)$ -\> $N<=100*20/(\nu_1*19^2) = 5.5$
+
+        Chernoff: $0.95 <= P(S>1) <= e^{-t}*M_s(t)$, where
+
+        $M_s(t) = E(e^{St}) = E(e^{X_1t} * \dots * e^{X_{100}t}) = E^{100}(e^{X_{i}t}) = M_X^{100}(t) = (\frac{\nu_1*N }{\nu_1*N-t})^{100}$
+
+        Thus, $N <= \frac{t*(e*0.95)^{1/100}}{19*((e*0.95)^{1/100} - 1)}$
+
+        Which, minimized, gives us a bound of $N <= 5.4$
+
+        CLT: $1-P(S<=1) >= 0.95$
+
+        $P(\frac{X_1+\dots+X_{100} - \mu n}{\sigma\sqrt{n}}\leq\frac{1-\mu n}{\sigma\sqrt{n}}) \rightarrow \phi(\frac{1-\mu n}{\sigma\sqrt{n}}) = \phi(\frac{1-\frac{100}{19N}}{\frac{10}{19N}})$
+
+    -   with the predicted $N$ and thus $\nu$, simulate the realization $x_1,x_2,\dots,x_{100}$ of the $X_i$ and of the sum $S = X_1 + \cdots + X_{100}$;\
+
+    ```{r}
+    vals <- rexp(100, rate=5*19)
+    sum(vals)
+    ```
+
+    -   repeat this $K$ times to get the sample $\mathbf{s}=(s_1,\dots,s_K)$ of total times until the $100^{\mathrm{th}}$ click;\
+
+    ```{r}
+    K = 10000
+    sample_sums <- rowSums(matrix(rexp(100*K, rate = 5*19), nrow=K))
+    ```
+
+    -   estimate the probability that the location is identified as safe and compare to the desired level $0.95$
+
+    ```{r}
+    ecdf_sums <- ecdf(sample_sums)
+    1 - ecdf_sums(1)
+    ```
+
+    For a bound of 5, We get a probability of about 68% of the place being safe. Testing this with a bound of 4, we see that the probability better satisfies the 0.95 requirement. This means that the approximation of 5.4 using Chernoff/Markov bounds was suboptimal.
+
+    ```{r}
+    sample_sums <- rowSums(matrix(rexp(100*K, rate = 4*19), nrow=K))
+    ecdf_sums <- ecdf(sample_sums)
+    1 - ecdf_sums(1)    
+    ```
+
+### General summary and conclusions
+
+We tested practical applications of various probabilistic bounds, as well as the Central Limit Theorem. It was a challenge to complete the given tasks in R, but we did nonetheless.
