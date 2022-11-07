@@ -1,0 +1,231 @@
+---
+title: 'P&S-2022: Lab assignment 2'
+author: "Yaroslav Korch, Muzychuk Teodor, Kharabara Yurii"
+output:
+  html_document:
+    df_print: paged
+---
+
+## 	General comments and instructions
+*  Complete solution will give you $\bf 4$ points (out of 100 total). Submission deadline is **23:59 of 06 November 2022**  
+*  The report must be prepared as an _R notebook_; you must submit to **cms** both the source _R notebook_ **and** the generated html file  
+*  At the beginning of the notebook, provide a work-breakdown structure estimating efforts of each team member  
+*  For each task, include 
+    +  problem formulation and discussion (what is a reasonable answer to discuss);  
+    +  the  corresponding $\mathbf{R}$ code with comments (usually it is just a couple of lines long);  
+    +  the statistics obtained (like sample mean or anything else you use to complete the task) as well as histograms etc to illustrate your findings;  
+    +  justification of your solution (e.g. refer to the corresponding theorems from probability theory);  
+    +  conclusions (e.g. how reliable your answer is, does it agree with common sense expectations etc)  
+*  The __team id number__ referred to in tasks is the __two-digit__ ordinal number of your team on the list. Include the line __set.seed(team id number)__ at the beginning of your code to make your calculations reproducible. Also observe that the answers **do** depend on this number!  
+*  Take into account that not complying with these instructions may result in point deduction regardless of whether or not your implementation is correct. 
+
+
+### Task 1
+
+#### In this task, we discuss the \([7,4]\) Hamming code and investigate its reliability. That coding system	can correct single errors in the transmission of \(4\)-bit messages and proceeds as follows:   
+
+* given a message \(\mathbf{m} = (a_1 a_2 a_3 a_4)\), we first encode it to a \(7\)-bit _codeword_ \(\mathbf{c} = \mathbf{m}G = (x_1 x_2 x_3 x_4 x_5 x_6 x_7)\), where \(G\) is a \(4\times 7\) _generator_ matrix  
+* the codeword \(\mathbf{c}\) is transmitted, and \(\mathbf{r}\) is the received message  
+* \(\mathbf{r}\) is checked for errors by calculating the _syndrome vector_ \(\mathbf{z} := \mathbf{r} H\), for a \(7 \times 3\) _parity-check_ matrix \(H\)  
+* if a single error has occurred in \(\mathbf{r}\), then the binary \(\mathbf{z}  = (z_1 z_2 z_3)\) identifies the wrong bit no. \(z_1 + 2 z_2 + 4z_3\); thus \( (0 0 0)\) shows there was no error (or more than one), while \((1 1 0 )\) means the third bit (or more than one) got corrupted  
+* if the error was identified, then we flip the corresponding bit in \(\mathbf{r}\) to get the corrected \(\mathbf{r}^* = (r_1 r_2 r_3 r_4 r_5 r_6 r_7)\);  
+* the decoded message is then \(\mathbf{m}^*:= (r_3r_5r_6r_7)\). 
+  
+#### The __generator__ matrix \(G\) and the __parity-check__ matrix \(H\) are given by
+\[	
+	G := 
+	\begin{pmatrix}
+		1 & 1 & 1 & 0 & 0 & 0 & 0 \\
+		1 & 0 & 0 & 1 & 1 & 0 & 0 \\
+		0 & 1 & 0 & 1 & 0 & 1 & 0 \\
+		1 & 1 & 0 & 1 & 0 & 0 & 1 \\
+	\end{pmatrix},
+ \qquad 
+	H^\top := \begin{pmatrix}
+		1 & 0 & 1 & 0 & 1 & 0 & 1 \\
+		0 & 1 & 1 & 0 & 0 & 1 & 1 \\
+		0 & 0 & 0 & 1 & 1 & 1 & 1
+	\end{pmatrix}
+\]
+
+
+#### Assume that each bit in the transmission \(\mathbf{c} \mapsto \mathbf{r}\) gets corrupted independently of the others with probability \(p = \mathtt{id}/100\), where \(\mathtt{id}\) is your team number. Your task is the following one.
+
+1.  Simulate the encoding-transmission-decoding process \(N\) times and find the estimate \(\hat p\) of the probability \(p^*\) of correct transmission of a single message \(\mathbf{m}\). Comment why, for large \(N\), \(\hat p\) is expected to be close to \(p^*\).  
+2. By estimating the standard deviation of the corresponding indicator of success by the standard error of your sample and using the CLT, predict the \emph{confidence} interval \((p^*-\varepsilon, p^* + \varepsilon)\), in which the estimate  \(\hat p\) falls with probability at least \(0.95\).  
+3.  What choice of \(N\) guarantees that \(\varepsilon \le 0.03\)?  
+4.  Draw the histogram of the number \(k = 0,1,2,3,4\) of errors while transmitting a \(4\)-digit binary message. Do you think it is one of the known distributions?
+
+
+#### You can (but do not have to) use the chunks we prepared for you 
+
+#### First, we set the **id** of the team and define the probability \(p\) and the generator and parity-check matrices \(G\) and \(H\)
+
+```{r}
+# your team id number 
+                          ###
+id <- 9                   ### Change to the correct id!
+                          ###
+set.seed(id)
+p <- id/100
+# matrices G and H
+G <- matrix(c(1, 1, 1, 0, 0, 0, 0,
+		1, 0, 0, 1, 1, 0, 0,
+		0, 1, 0, 1, 0, 1, 0,
+		1, 1, 0, 1, 0, 0, 1), nrow = 4, byrow = TRUE)
+H <- t(matrix(c(1, 0, 1, 0, 1, 0, 1,
+		0, 1, 1, 0, 0, 1, 1,
+		0, 0, 0, 1, 1, 1, 1), nrow = 3, byrow = TRUE))
+# cat("The matrix G is: \n") 
+#G  
+#cat("The matrix H is: \n") 
+#H
+#cat("The product GH must be zero: \n")
+#(G%*%H) %%2
+```
+
+#### Next, generate the messages
+
+```{r}
+# generate N messages
+
+message_generator <- function(N) {
+  matrix(sample(c(0,1), 4*N, replace = TRUE), nrow = N)
+}  
+messages <- message_generator(100)
+codewords <- (messages %*% G) %% 2
+```
+#### Generate random errors; do not forget that they occur with probability \(p\)! Next, generate the received messages
+
+### Task 1.1
+```{r}
+simulation <- function(message_number){
+  messages <- message_generator(message_number)
+  codewords <- (messages %*% G) %% 2
+  for (i in 1:length(codewords[,1])){
+        for (digit in 1:length(codewords[i,])){
+            number_with_prob_p <- sample(c(1, 0), 1, prob = c(p, 1-p), replace = T)
+            if (number_with_prob_p == 1){
+                if (codewords[i,digit] == 1){
+                    codewords[i,digit] <- 0
+                } else {
+                    codewords[i,digit] <- 1
+                }
+            }
+        }
+  }
+    decoded <- messages
+    for (i in 1:length(codewords[,1])){
+        z <- (matrix(c(codewords[i,]), nrow = 1, byrow = TRUE)%*%H)%%2
+        num <- z[1,1] + 2*z[1,2] + 4*z[1,3]
+        if (num != 0){
+            if (codewords[i,num] == 0){
+                codewords[i,num] <- 1
+            } else {
+                codewords[i,num] <- 0
+            }
+        }
+        decoded[i,1] <- codewords[i,3]
+        decoded[i,2] <- codewords[i,5]
+        decoded[i,3] <- codewords[i,6]
+        decoded[i,4] <- codewords[i,7]
+    }
+    
+    appearances = c(0, 0, 0, 0, 0)
+    for (ind in 1:length(messages[,1])) {
+      mess <- messages[ind,]
+      res <- decoded[ind,]
+      counter <- 0
+      for (j in 1:4){
+        if (mess[j] != res[j]){
+          counter = counter + 1
+        }
+      }
+      appearances[counter+1] = appearances[counter+1] + 1
+    }
+    
+    return(appearances)
+}
+```
+
+
+The probability $p*$ is the probability that everything was ok. (That there were no mistakes, or message had no more than one mistake) Thus, $p* = (1-p)^7 + {7\choose 1}(1-p)^6p=(\frac{91}{100})^7 + 7\cdot(\frac{91}{100})^6*(\frac{9}{100}) ≈ 0.874519$.
+```{r}
+N = 10000
+p_roof <- simulation(N)
+p_roof <- p_roof[1]/N
+print(paste("p^ is equal to:",p_roof))
+
+```
+
+## Task 1.4
+```{r}
+N = 10000
+h <- simulation(N)
+lst = c()
+for(i in 1:h[1]){
+  lst = c(lst, 0)
+}
+for(i in 1:h[2]){
+  lst = c(lst, 1)
+}
+for(i in 1:h[3]){
+  lst = c(lst, 2)
+}
+for(i in 1:h[4]){
+  lst = c(lst, 3)
+}
+for(i in 1:h[5]){
+  lst = c(lst, 4)
+}
+
+#for(i in 1:length(h)){h[i] <- 4 - h[i]}
+#print(h)
+hist(lst,
+     breaks = -1:5,
+     main = paste("Histogram of the", round(10000), "transmited messages",'\n' , "With total number of errors", sum(h)-h[1]),
+     col = "lightblue",
+     xlab = "Values",
+     xlim = c(-1,4)
+     )
+
+```
+
+```{r}
+dev = sd(lst)
+num <- length(lst)
+eps = dev*1.96/sqrt(num)
+cat("Epsilon: ", eps)
+```
+
+## Task 1.2
+$P(\hat{p} - ɛ \le p^{*}\le\hat{p} + ɛ) = P(-ɛ ≤ p^{*} - \hat{p}) =$ \
+\
+$P(-ɛ \le (\hat{p} - p^{*}) \le ɛ) = P(-\frac{ɛ*\sqrt{N}}{σ} ≤ - \frac{ɛ*\sqrt{N} * (\hat{p} - p^{*})}{σ}≤\frac{ɛ\sqrt{N}}{σ}) = $\
+\
+$\Phi(\frac{ɛ\sqrt{N}}{σ}) - \Phi(-\frac{ɛ\sqrt{N}}{σ}) - 1 = 2Φ(\frac{ɛ\sqrt{N}}{σ}) - 1 = 0.95$\
+\
+$=> \Phi(\frac{ɛ\sqrt{N}}{σ}) = 0.975$\
+
+
+By standart normal table:\
+$\frac{ɛ\sqrt{N}}{σ} = 1.96$\
+\
+$\frac{ɛ\sqrt{N}}{0.6271269} = 1.96$\
+\
+$ɛ = \frac{1.229169}{\sqrt{N}}$
+
+
+## Task 1.3
+$\frac{1.229169}{\sqrt{N}} ≤ 0.03$\
+\
+$\sqrt{N} ≥ \frac{1.229169}{0.03}$\
+\
+$N ≥ 1875.377878401111$\
+\
+So $N = 1876$ guarantees that $ɛ ≤ 0.03$ 
+
+
+In this task we simulated Hamming algorithm, and checked LLN so proved that for large N, $\hat{p}$ is expected to be close to $p^{∗}$. Found different meanings to discover what N we need for the $\varepsilon$ be less that some meaning. Build a histogram of amount of mistakes in our decoded messages, which proves $p^{*}$ meaning.  And discovered that our distribution is similar to standart normal distribution. (The biggest value is 0, and closest to it are 1 and 2 mistakes.)
+
+__Do not forget to include several sentences summarizing your work and the conclusions you have made!__ 
